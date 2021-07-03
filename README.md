@@ -1,4 +1,5 @@
 # daconNewsTopicClassification  
+#AI #NLP #KoBERT #dataAugument  
 데이콘  
 뉴스 토픽 분류 AI 경진대회  
 
