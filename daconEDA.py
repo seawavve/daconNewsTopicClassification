@@ -188,8 +188,8 @@ def EDA(sentence, alpha_sr=0.1, alpha_ri=0.1, alpha_rs=0.1, p_rd=0.1, num_aug=9)
 
 	return augmented_sentences
 
-# csv파일 가져와서 
-# 데이터 뿔리고 다시 새롭게 저장
+
+###### MAIN ######
 data=pd.read_csv('train_data.csv')
 new_data=pd.DataFrame(columns=['title','topic_idx'])
 #print(new_data)
