@@ -1,6 +1,6 @@
 
-# RD, RS만을 사용
-# SR과 RI은 효율이 좋지 않아 삭제
+# RS만을 사용
+# RD, SR, RI은 효율이 좋지 않아 삭제
 
 import random
 import pickle
