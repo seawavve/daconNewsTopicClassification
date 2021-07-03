@@ -204,8 +204,3 @@ for idx in range(len(data)): #len(data)
 		new_data.loc[count]=[augumented_sentences[j],data.loc[idx]['topic_idx'] ]
 		count+=1
 new_data.to_csv('augumented_train_data.csv')
-
-
-
-
-#print(EDA('개구리 피부 점액서 항바이러스 물질 발견'))
