@@ -144,7 +144,8 @@ def EDA(sentence, alpha_sr=0.1, alpha_ri=0.1, alpha_rs=0.1, p_rd=0.1, num_aug=9)
 	num_words = len(words)
 
 	augmented_sentences = []
-	num_new_per_technique = int(num_aug/4) + 1
+	# num_new_per_technique = int(num_aug/4) + 1
+	num_new_per_technique = 2
 
 	n_sr = max(1, int(alpha_sr*num_words))
 	n_ri = max(1, int(alpha_ri*num_words))
@@ -166,13 +167,13 @@ def EDA(sentence, alpha_sr=0.1, alpha_ri=0.1, alpha_rs=0.1, p_rd=0.1, num_aug=9)
 	for _ in range(num_new_per_technique):
 		a_words = random_swap(words, n_rs)
 		augmented_sentences.append(" ".join(a_words))
-		print(' '.join(a_words))
+	#	print(' '.join(a_words))
 
 	# rd
-	for _ in range(num_new_per_technique):
-		a_words = random_deletion(words, p_rd)
-		augmented_sentences.append(" ".join(a_words))
-		print(' '.join(a_words))
+	# for _ in range(num_new_per_technique):
+	# 	a_words = random_deletion(words, p_rd)
+	# 	augmented_sentences.append(" ".join(a_words))
+	# 	#print(' '.join(a_words))
 
 	augmented_sentences = [get_only_hangul(sentence) for sentence in augmented_sentences]
 	#random.shuffle(augmented_sentences)
@@ -191,9 +192,19 @@ def EDA(sentence, alpha_sr=0.1, alpha_ri=0.1, alpha_rs=0.1, p_rd=0.1, num_aug=9)
 # 데이터 뿔리고 다시 새롭게 저장
 data=pd.read_csv('train_data.csv')
 new_data=pd.DataFrame(columns=['title','topic_idx'])
-print(new_data)
-for i in range(5): #len(data)
-    EDA(data.loc[i]['title'])
+#print(new_data)
+count=0
+for idx in range(len(data)): #len(data)
+	augumented_sentences=EDA(data.loc[idx]['title'])
+	for j in range(len(augumented_sentences)):
+		# new_data.append({
+		# 	'title': augumented_sentences[j], 
+		# 	'topic_idx': data.loc[idx]['topic_idx']
+		# 	},ignore_index=True)
+		new_data.loc[count]=[augumented_sentences[j],data.loc[idx]['topic_idx'] ]
+		count+=1
+new_data.to_csv('augumented_train_data.csv')
+
 
 
 
