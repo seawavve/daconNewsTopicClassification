@@ -4,10 +4,12 @@
   
   @seawavve
   + KoBERT모델 구축
-  + Hold-Out Validation 적용  
+  + Hold-Out Validation 적용 
+   
   @jundev1l2l
   + Code Refactoring
   + Ray Tune 적용  
+  
   @bbkaeul
   + 데이터 전처리  
   
