@@ -5,6 +5,7 @@
   @seawavve
   + KoBERT모델 구축
   + Hold-Out Validation 적용 
+  + Tableau 데이터 시각화
    
   @jundev1l2l
   + Code Refactoring
