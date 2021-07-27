@@ -148,9 +148,3 @@ if __name__ == "__main__":
     parser.add_argument("--exp_id", "-e", type=str, default="none")
     args = parser.parse_args()
     main(args)
-    config = {
-        "num_epochs": 1,
-        "batch_size": 16,
-        "learning_rate": 1e-5
-    }
-    run_hyperopt(config)
