@@ -4,8 +4,7 @@ import numpy as np
 from tqdm import tqdm
 
 
-class Trainer():
-
+class Trainer:
     def __init__(self):
         pass
 

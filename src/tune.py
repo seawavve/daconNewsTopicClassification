@@ -4,8 +4,10 @@ from torch.utils.data import Dataset
 import gluonnlp as nlp
 import os
 import pickle
+import numpy as np
 from argparse import ArgumentParser
 
+from sklearn.model_selection import StratifiedShuffleSplit
 from kobert.utils import get_tokenizer
 from kobert.pytorch_kobert import get_pytorch_kobert_model
 from transformers import AdamW
@@ -23,17 +25,6 @@ from src.utils import set_seed
 
 
 def run_hyperopt(config):
-    device = torch.device("cuda:0")
-    bertmodel, vocab = get_pytorch_kobert_model()
-
-    dataset_train = nlp.data.TSVDataset("/home/junhyun/projects/dacon_news/data/augumented_train_data.tsv",
-                                        field_indices=[1, 2], num_discard_samples=1)
-    dataset_test = nlp.data.TSVDataset("/home/junhyun/projects/dacon_news/data/test_data.tsv", field_indices=[1, 2],
-                                       num_discard_samples=1)
-
-    tokenizer = get_tokenizer()
-    tok = nlp.data.BERTSPTokenizer(tokenizer, vocab, lower=False)
-
     ## Setting parameters
     max_len = 64
     batch_size = config["batch_size"]
@@ -42,12 +33,30 @@ def run_hyperopt(config):
     max_grad_norm = 1
     log_interval = 200
     learning_rate = config["learning_rate"]
+    num_k_fold = 5
+    test_size = 0.1
+    device = torch.device("cuda:0")
 
-    data_train = BERTDataset(dataset_train, 0, 1, tok, max_len, True, False)
-    data_test = BERTDataset(dataset_test, 0, 1, tok, max_len, True, False)
+    bertmodel, vocab = get_pytorch_kobert_model()
+    tokenizer = get_tokenizer()
+    tok = nlp.data.BERTSPTokenizer(tokenizer, vocab, lower=False)
+    dataset = nlp.data.TSVDataset("/home/junhyun/projects/dacon_news/data/augumented_train_data.tsv",
+                                        field_indices=[1, 2], num_discard_samples=1)
+    X = [data[0] for data in dataset[:10]]
+    y = [data[1] for data in dataset[:10]]
 
-    train_dataloader = torch.utils.data.DataLoader(data_train, batch_size=batch_size, num_workers=5)
-    test_dataloader = torch.utils.data.DataLoader(data_test, batch_size=batch_size, num_workers=5)
+    train_val_dataloaders = []
+    splitter = StratifiedShuffleSplit(n_splits=num_k_fold, test_size=test_size)
+    for train_index, val_index in splitter.split(X, y):
+        X_train, X_val = [X[i] for i in train_index], [X[i] for i in val_index]
+        y_train, y_val = [y[i] for i in train_index], [y[i] for i in val_index]
+        _train_fold = list(zip(X_train, y_train))
+        _val_fold = list(zip(X_val, y_val))
+        train_fold = BERTDataset(_train_fold, 0, 1, tok, max_len, True, False)
+        val_fold = BERTDataset(_val_fold, 0, 1, tok, max_len, True, False)
+        train_fold_dataloader = torch.utils.data.DataLoader(train_fold, batch_size=batch_size, num_workers=5)
+        val_fold_dataloader = torch.utils.data.DataLoader(val_fold, batch_size=batch_size, num_workers=5)
+        train_val_dataloaders += [[train_fold_dataloader, val_fold_dataloader]]
 
     model = BERTClassifier(bertmodel, dr_rate=0.5).to(device)
 
@@ -61,31 +70,33 @@ def run_hyperopt(config):
 
     optimizer = AdamW(optimizer_grouped_parameters, lr=learning_rate)
     loss_fn = nn.CrossEntropyLoss()
-    t_total = len(train_dataloader) * num_epochs
+    t_total = len(train_val_dataloaders[0][0]) * num_epochs
     warmup_step = int(t_total * warmup_ratio)
     scheduler = get_cosine_schedule_with_warmup(optimizer, num_warmup_steps=warmup_step, num_training_steps=t_total)
-
     trainer = Trainer()
 
-    trainer.train(model=model,
-                  loss_fn=loss_fn,
-                  metric=calc_accuracy,
-                  optimizer=optimizer,
-                  scheduler=scheduler,
-                  device=device,
-                  train_dataloader=train_dataloader,
-                  num_epochs=num_epochs,
-                  log_interval=log_interval,
-                  max_grad_norm=max_grad_norm
-                  )
+    accuracy = []
+    for train_fold_dataloader, val_fold_dataloader in train_val_dataloaders:
+        trainer.train(model=model,
+                      loss_fn=loss_fn,
+                      metric=calc_accuracy,
+                      optimizer=optimizer,
+                      scheduler=scheduler,
+                      device=device,
+                      train_dataloader=train_fold_dataloader,
+                      num_epochs=num_epochs,
+                      log_interval=log_interval,
+                      max_grad_norm=max_grad_norm
+                      )
 
-    trainer.test(model=model,
-                 metric=calc_accuracy,
-                 device=device,
-                 test_dataloader=test_dataloader,
-                 )
+        trainer.test(model=model,
+                     metric=calc_accuracy,
+                     device=device,
+                     test_dataloader=val_fold_dataloader
+                     )
+        accuracy += [trainer.test_acc]
 
-    return {"accuracy": trainer.test_acc}
+    return {"accuracy": np.mean(accuracy)}
 
 
 def main(args):
@@ -147,7 +158,7 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--exp_id", "-e", type=str, default="none")
     args = parser.parse_args()
-    main(args)
+    # main(args)
     config = {
         "num_epochs": 1,
         "batch_size": 16,
