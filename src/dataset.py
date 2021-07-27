@@ -9,7 +9,7 @@ class BERTDataset(Dataset):
         transform = nlp.data.BERTSentenceTransform(
             bert_tokenizer, max_seq_length=max_len, pad=pad, pair=pair)
 
-        self.sentences = [transform(i[sent_idx]) for i in dataset]
+        self.sentences = [transform([i[sent_idx]]) for i in dataset]
         self.labels = [np.int32(i[label_idx]) for i in dataset]
 
     def __getitem__(self, i):
