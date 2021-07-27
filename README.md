@@ -4,12 +4,12 @@
   
   @seawavve
   + KoBERT모델 구축
-  + Hold-Out Validation 적용
+  + Hold-Out Validation 적용  
   @jundev1l2l
   + Code Refactoring
-  + Ray Tune 적용
+  + Ray Tune 적용  
   @bbkaeul
-  + 데이터 전처리
+  + 데이터 전처리  
   
 
 ![](https://github.com/seawavve/daconNewsTopicClassification/blob/main/dataVisualization.png)  
