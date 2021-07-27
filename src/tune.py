@@ -4,6 +4,7 @@ from torch.utils.data import Dataset
 import gluonnlp as nlp
 import os
 import pickle
+import numpy as np
 from argparse import ArgumentParser
 
 from kobert.utils import get_tokenizer
@@ -14,12 +15,13 @@ from transformers.optimization import get_cosine_schedule_with_warmup
 import ray
 import ray.tune as tune
 from ray.tune.suggest.hyperopt import HyperOptSearch
+from sklearn.model_selection import StratifiedShuffleSplit
 
-from dataset import BERTDataset
-from model import BERTClassifier
-from utils import calc_accuracy
-from runner import Trainer
-from utils import set_seed
+from src.dataset import BERTDataset
+from src.model import BERTClassifier
+from src.utils import calc_accuracy
+from src.runner import Trainer
+from src.utils import set_seed
 
 
 def run_hyperopt(config):
@@ -28,8 +30,6 @@ def run_hyperopt(config):
 
     dataset_train = nlp.data.TSVDataset("/home/junhyun/projects/dacon_news/data/augumented_train_data.tsv",
                                         field_indices=[1, 2], num_discard_samples=1)
-    dataset_test = nlp.data.TSVDataset("/home/junhyun/projects/dacon_news/data/test_data.tsv", field_indices=[1, 2],
-                                       num_discard_samples=1)
 
     tokenizer = get_tokenizer()
     tok = nlp.data.BERTSPTokenizer(tokenizer, vocab, lower=False)
@@ -42,12 +42,28 @@ def run_hyperopt(config):
     max_grad_norm = 1
     log_interval = 200
     learning_rate = config["learning_rate"]
+    num_k_folds = 5
 
-    data_train = BERTDataset(dataset_train, 0, 1, tok, max_len, True, False)
-    data_test = BERTDataset(dataset_test, 0, 1, tok, max_len, True, False)
+    dataset_train = np.array(dataset_train)
+    X = dataset_train[:, 0]
+    y = dataset_train[:, 1]
 
-    train_dataloader = torch.utils.data.DataLoader(data_train, batch_size=batch_size, num_workers=5)
-    test_dataloader = torch.utils.data.DataLoader(data_test, batch_size=batch_size, num_workers=5)
+    train_val_dataloaders = []
+    k_fold_index_sampler = StratifiedShuffleSplit(num_k_folds)
+    for train_index, val_index in k_fold_index_sampler.split(X, y):
+        X_train, X_val = X[train_index], X[val_index]
+        y_train, y_val = y[train_index], y[val_index]
+
+        _train = list(zip(X_train, y_train))
+        _val = list(zip(X_val, y_val))
+
+        folded_data_train = BERTDataset(_train, 0, 1, tok, max_len, True, False)
+        folded_data_val = BERTDataset(_val, 0, 1, tok, max_len, True, False)
+
+        folded_train_dataloader = torch.utils.data.DataLoader(folded_data_train, batch_size=batch_size, num_workers=5)
+        folded_val_dataloader = torch.utils.data.DataLoader(folded_data_val, batch_size=batch_size, num_workers=5)
+
+        train_val_dataloaders += [(folded_train_dataloader, folded_val_dataloader)]
 
     model = BERTClassifier(bertmodel, dr_rate=0.5).to(device)
 
@@ -56,36 +72,37 @@ def run_hyperopt(config):
     optimizer_grouped_parameters = [
         {'params': [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
          'weight_decay': 0.01},
-        {'params': [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
+        {'params': [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)],
+         'weight_decay': 0.0}
     ]
-
     optimizer = AdamW(optimizer_grouped_parameters, lr=learning_rate)
     loss_fn = nn.CrossEntropyLoss()
-    t_total = len(train_dataloader) * num_epochs
+    t_total = len(train_val_dataloaders[0][0]) * num_epochs
     warmup_step = int(t_total * warmup_ratio)
     scheduler = get_cosine_schedule_with_warmup(optimizer, num_warmup_steps=warmup_step, num_training_steps=t_total)
-
     trainer = Trainer()
 
-    trainer.train(model=model,
-                  loss_fn=loss_fn,
-                  metric=calc_accuracy,
-                  optimizer=optimizer,
-                  scheduler=scheduler,
-                  device=device,
-                  train_dataloader=train_dataloader,
-                  num_epochs=num_epochs,
-                  log_interval=log_interval,
-                  max_grad_norm=max_grad_norm
-                  )
+    test_acc = []
+    for train_dataloader, val_dataloader in train_val_dataloaders:
+        trainer.train(model=model,
+                      loss_fn=loss_fn,
+                      metric=calc_accuracy,
+                      optimizer=optimizer,
+                      scheduler=scheduler,
+                      device=device,
+                      train_dataloader=train_dataloader,
+                      num_epochs=num_epochs,
+                      log_interval=log_interval,
+                      max_grad_norm=max_grad_norm
+                      )
+        trainer.test(model=model,
+                     metric=calc_accuracy,
+                     device=device,
+                     test_dataloader=val_dataloader,
+                     )
+        test_acc += [trainer.test_acc]
 
-    trainer.test(model=model,
-                 metric=calc_accuracy,
-                 device=device,
-                 test_dataloader=test_dataloader,
-                 )
-
-    return {"accuracy": trainer.test_acc}
+    return {"accuracy": np.mean(test_acc)}
 
 
 def main(args):
@@ -147,4 +164,10 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--exp_id", "-e", type=str, default="none")
     args = parser.parse_args()
-    main(args)
+    config = {
+        "batch_size": 16,
+        "num_epochs": 1,
+        "learning_rate": 1e-5
+    }
+    run_hyperopt(config)
+    # main(args)
