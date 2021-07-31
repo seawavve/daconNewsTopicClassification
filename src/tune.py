@@ -28,23 +28,26 @@ def run_hyperopt(config):
     ## Setting parameters
     max_len = 64
     batch_size = config["batch_size"]
+    dropout_prob = config["dropout_prob"]
     warmup_ratio = 0.1
     num_epochs = config["num_epochs"]
     max_grad_norm = 1
     log_interval = 200
     learning_rate = config["learning_rate"]
-    num_k_fold = 5
-    test_size = 0.1
-    device = torch.device("cuda:0")
+    num_k_fold = config["num_k_fold"]
+    test_size = config["test_size"]
 
+    device = torch.device("cuda")
     bertmodel, vocab = get_pytorch_kobert_model()
+    model = BERTClassifier(bertmodel, dr_rate=dropout_prob)
+    model = nn.DataParallel(model).to(device)
+
     tokenizer = get_tokenizer()
     tok = nlp.data.BERTSPTokenizer(tokenizer, vocab, lower=False)
     dataset = nlp.data.TSVDataset("/home/junhyun/projects/dacon_news/data/augumented_train_data.tsv",
-                                        field_indices=[1, 2], num_discard_samples=1)
-    X = [data[0] for data in dataset[:10]]
-    y = [data[1] for data in dataset[:10]]
-
+                                  field_indices=[1, 2], num_discard_samples=1)
+    X = [data[0] for data in dataset]
+    y = [data[1] for data in dataset]
     train_val_dataloaders = []
     splitter = StratifiedShuffleSplit(n_splits=num_k_fold, test_size=test_size)
     for train_index, val_index in splitter.split(X, y):
@@ -57,8 +60,6 @@ def run_hyperopt(config):
         train_fold_dataloader = torch.utils.data.DataLoader(train_fold, batch_size=batch_size, num_workers=5)
         val_fold_dataloader = torch.utils.data.DataLoader(val_fold, batch_size=batch_size, num_workers=5)
         train_val_dataloaders += [[train_fold_dataloader, val_fold_dataloader]]
-
-    model = BERTClassifier(bertmodel, dr_rate=0.5).to(device)
 
     # Prepare optimizer and schedule (linear warmup and decay)
     no_decay = ['bias', 'LayerNorm.weight']
@@ -88,7 +89,6 @@ def run_hyperopt(config):
                       log_interval=log_interval,
                       max_grad_norm=max_grad_norm
                       )
-
         trainer.test(model=model,
                      metric=calc_accuracy,
                      device=device,
@@ -102,20 +102,20 @@ def run_hyperopt(config):
 def main(args):
     # set hyperparameters which will not be tuned
     seed = 0
-    num_epochs = 1
-    num_search = 5  # for real tuning, use 50
     metric_name = "accuracy"
-    num_gpus = 1  # number of gpus to be used
 
     set_seed(seed, 1)
     ray.init()
 
     # initialize search space
     space = {
-        "num_epochs": num_epochs,
-        "batch_size": tune.choice([8, 12, 16, 32, 64]),
+        "num_epochs": args.num_epochs,
+        "batch_size": tune.choice([8, 16, 32, 64, 128]),
         "learning_rate": tune.uniform(1e-5, 1e-4),
-        # "dropout_prob": tune.choice([0.0, 0.1, 0.2, 0.3]),
+        "dropout_prob": tune.uniform(0.0, 0.5),
+        "num_k_fold": args.num_k_fold,
+        "test_size": args.test_size,
+        "num_gpus": len(args.gpus.split(","))
     }
 
     # can add additional parameters to tune
@@ -123,19 +123,20 @@ def main(args):
     # space["warmup_ratio"] = tune.uniform(0.0,0.2)
     # space["max_grad_norm"] = tune.choice([1])
 
-    hyperopt_search = HyperOptSearch(space, metric=metric_name, mode="max")
+    hyperopt_search = HyperOptSearch(metric=metric_name, mode="max")
 
+    name = f"ne{args.num_epochs}_nk{args.num_k_fold}_ts{args.test_size}_ns{args.num_search}_{args.exp_id}"
+    path = f"/home/junhyun/log/dacon_news/hyperopt/{name}"
     analysis = tune.run(run_hyperopt,  # (callable) experiment or list of experiments
+                        config=space,
                         search_alg=hyperopt_search,
-                        num_samples=num_search,
-                        resources_per_trial={'gpu': num_gpus},
-                        name=args.exp_id,
+                        num_samples=args.num_search,
+                        resources_per_trial={'gpu': space["num_gpus"]},
                         log_to_file=True,
-                        local_dir=f"/home/junhyun/projects/dacon_news/log/tune/"
-                        # trial_dirname_creator=trial_dirname_creator
+                        local_dir=path,
                         )
 
-    best_trial = analysis.get_best_trial(metric_name, "max")
+    best_trial = analysis.get_best_trial(metric=metric_name, mode="max", scope="all")
 
     all_dataframes = analysis.trial_dataframes
     all_configs = analysis.get_all_configs()
@@ -148,20 +149,35 @@ def main(args):
         found_augment_policy_configs.append(found_augment_policy_config)
     results = sorted(found_augment_policy_configs, key=lambda x: x[metric_name], reverse=True)
     print("Best trial config: {}".format(best_trial.config))
-    os.makedirs(f"/home/junhyun/log/dacon_news/tune/{args.exp_id}", exist_ok=True)
-    pickle.dump(results, open(os.path.join(f"/home/junhyun/log/dacon_news/tune/{args.exp_id}", "result.pkl"), "wb"))
+    os.makedirs(f"/home/junhyun/log/dacon_news/tune/ne{args.num_epochs}_nk{args.num_k_fold}_ts{args.test_size}_ns{args.num_search}_{args.exp_id}", exist_ok=True)
+    pickle.dump(results, open(os.path.join(f"/home/junhyun/log/dacon_news/tune/ne{args.num_epochs}_nk{args.num_k_fold}_ts{args.test_size}_ns{args.num_search}_{args.exp_id}", "result.pkl"), "wb"))
     ray.shutdown()
 
 
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--exp_id", "-e", type=str, default="none")
+    parser.add_argument("--num_epochs", "-ne", type=int, default=1)
+    parser.add_argument("--num_k_fold", "-nk", type=int, default=5)
+    parser.add_argument("--test_size", "-ts", type=float, default=0.2)
+    parser.add_argument("--num_search", "-ns", type=int, default=20)
+    parser.add_argument("--exp_id", "-e", type=str, default="first_trial")
+    parser.add_argument("--num_thread", "-nt", type=int, default=1)
+    parser.add_argument("--gpus", "-g", type=str, default="4,5,6,7")
     args = parser.parse_args()
-    # main(args)
-    config = {
-        "num_epochs": 1,
-        "batch_size": 16,
-        "learning_rate": 1e-5
+
+    os.environ["CUDA_VISIBLE_DEVICES"] = args.gpus
+    # os.environ["CUDA_LAUNCH_BLOCKING"] = str(args.num_thread)
+    main(args)
+    # python -m src.tune -ne 1 -nk 5 -ts 0.1 -e first_trial -nt 1 -g 0
+
+    space = {
+        "num_epochs": args.num_epochs,
+        "batch_size": 32,
+        "learning_rate": 1e-5,
+        "dropout_prob": 0.1,
+        "num_k_fold": args.num_k_fold,
+        "test_size": args.test_size,
+        "num_gpus": len(args.gpus.split(","))
     }
-    run_hyperopt(config)
+    # run_hyperopt(space)

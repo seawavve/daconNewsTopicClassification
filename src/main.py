@@ -2,44 +2,47 @@ import torch
 from torch import nn
 from torch.utils.data import Dataset
 import gluonnlp as nlp
+from argparse import ArgumentParser
 
 from kobert.utils import get_tokenizer
 from kobert.pytorch_kobert import get_pytorch_kobert_model
 from transformers import AdamW
 from transformers.optimization import get_cosine_schedule_with_warmup
 
-from dataset import BERTDataset
-from model import BERTClassifier
-from runner import Trainer
-from utils import calc_accuracy
+from src.dataset import BERTDataset
+from src.model import BERTClassifier
+from src.runner import Trainer
+from src.utils import calc_accuracy
 
 
-def main():
+def main(args):
     device = torch.device("cuda:0")
     bertmodel, vocab = get_pytorch_kobert_model()
-
-    dataset_train = nlp.data.TSVDataset("/home/junhyun/projects/dacon_news/data/augumented_train_data.tsv", field_indices=[1, 2], num_discard_samples=1)
-    dataset_test = nlp.data.TSVDataset("/home/junhyun/projects/dacon_news/data/test_data.tsv", field_indices=[1, 2], num_discard_samples=1)
 
     tokenizer = get_tokenizer()
     tok = nlp.data.BERTSPTokenizer(tokenizer, vocab, lower=False)
 
     ## Setting parameters
+    batch_size = args.batch_size
+    learning_rate = args.learning_rate
+    dropout_rate = args.dropout_rate
+    num_epochs = args.num_epochs
+
     max_len = 64
-    batch_size = 32
     warmup_ratio = 0.1
-    num_epochs = 1
     max_grad_norm = 1
     log_interval = 200
-    learning_rate = 5e-5
 
+    dataset_train = nlp.data.TSVDataset("/home/junhyun/projects/dacon_news/data/augumented_train_data.tsv",
+                                        field_indices=[1, 2], num_discard_samples=1)
+    dataset_test = nlp.data.TSVDataset("/home/junhyun/projects/dacon_news/data/test_data.tsv",
+                                       field_indices=[1, 2], num_discard_samples=1)
     data_train = BERTDataset(dataset_train, 0, 1, tok, max_len, True, False)
     data_test = BERTDataset(dataset_test, 0, 1, tok, max_len, True, False)
-
     train_dataloader = torch.utils.data.DataLoader(data_train, batch_size=batch_size, num_workers=5)
     test_dataloader = torch.utils.data.DataLoader(data_test, batch_size=batch_size, num_workers=5)
 
-    model = BERTClassifier(bertmodel, dr_rate=0.5).to(device)
+    model = BERTClassifier(bertmodel, dr_rate=dropout_rate).to(device)
 
     # Prepare optimizer and schedule (linear warmup and decay)
     no_decay = ['bias', 'LayerNorm.weight']
@@ -58,23 +61,27 @@ def main():
     trainer = Trainer()
 
     trainer.train(model=model,
-          loss_fn=loss_fn,
-          metric=calc_accuracy,
-          optimizer=optimizer,
-          scheduler=scheduler,
-          device=device,
-          train_dataloader=train_dataloader,
-          num_epochs=num_epochs,
-          log_interval=log_interval,
-          max_grad_norm=max_grad_norm
-          )
-
-    trainer.test(model=model,
-         metric=calc_accuracy,
-         device=device,
-         test_dataloader=test_dataloader,
-         )
+                  loss_fn=loss_fn,
+                  metric=calc_accuracy,
+                  optimizer=optimizer,
+                  scheduler=scheduler,
+                  device=device,
+                  train_dataloader=train_dataloader,
+                  test_dataloader=test_dataloader,
+                  num_epochs=num_epochs,
+                  log_interval=log_interval,
+                  max_grad_norm=max_grad_norm,
+                  expid=args.expid
+                  )
 
 
 if __name__ == "__main__":
-    main()
+    parser = ArgumentParser()
+    parser.add_argument("--batch_size", "-bs", type=int, default=32)
+    parser.add_argument("--learning_rate", "-lr", type=float, default=5e-5)
+    parser.add_argument("--dropout_rate", "-dr", type=float, default=0.5)
+    parser.add_argument("--num_epochs", "-ne", type=int, default=1)
+    parser.add_argument("--expid", type=str, default="test")
+    args = parser.parse_args()
+    args.expid = f"bs{args.batch_size}_lr{args.learning_rate}_dr{args.dropout_rate}_ne{args.num_epochs}"
+    main(args)

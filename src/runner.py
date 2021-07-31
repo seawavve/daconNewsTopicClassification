@@ -16,12 +16,13 @@ class Trainer:
               scheduler,
               device,
               train_dataloader,
+              test_dataloader,
               num_epochs,
               log_interval,
-              max_grad_norm
+              max_grad_norm,
+              expid
               ):
-
-        for e in range(num_epochs):
+        for epoch in range(num_epochs):
             train_acc = 0.0
             model.train()
             for batch_id, (token_ids, valid_length, segment_ids, label) in enumerate(tqdm(train_dataloader)):
@@ -38,18 +39,22 @@ class Trainer:
                 scheduler.step()  # Update learning rate schedule
                 train_acc += metric(out, label)
                 if batch_id % log_interval == 0:
-                    print("epoch {} batch id {} loss {} train acc {}".format(e + 1, batch_id + 1, loss.data.cpu().numpy(),
+                    print("epoch {} batch id {} loss {} train acc {}".format(epoch + 1, batch_id + 1, loss.data.cpu().numpy(),
                                                                              train_acc / (batch_id + 1)))
-            print("epoch {} train acc {}".format(e + 1, train_acc / (batch_id + 1)))
+            print("epoch {} train acc {}".format(epoch + 1, train_acc / (batch_id + 1)))
+
+            self.test(model, metric, device, test_dataloader, epoch, expid)
+            torch.save(model.state_dict())
 
 
     def test(self,
              model,
              metric,
              device,
-             test_dataloader
+             test_dataloader,
+             epoch,
+             expid
              ):
-
         model.eval()
         test_eval = []
         test_acc = 0.0
@@ -66,7 +71,7 @@ class Trainer:
                 logits = logits.detach().cpu().numpy()
                 test_eval.append(np.argmax(logits))
 
-        print("test acc {}".format(test_acc / (batch_id + 1)))
+        print(f"test acc at epoch {epoch}: {test_acc / (batch_id + 1)}")
 
         self.test_acc = test_acc / (batch_id + 1)
 
@@ -74,5 +79,6 @@ class Trainer:
         result = pd.DataFrame(test_eval, columns=['topic_idx'])
         result['index'] = range(45654, 45654 + len(result))
         result.set_index('index', inplace=True)
-        result.to_csv('result.csv')
+        result.to_csv(f'{expid}_result_epoch{epoch}.csv')
         # display(result)
+
