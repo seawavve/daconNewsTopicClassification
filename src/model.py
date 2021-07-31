@@ -25,11 +25,31 @@ class BERTClassifier(nn.Module):
 
     def forward(self, token_ids, valid_length, segment_ids):
         attention_mask = self.gen_attention_mask(token_ids, valid_length)
-        _, pooler = self.bert(
+        _, out = self.bert(
             input_ids=token_ids,
             token_type_ids=segment_ids.long(),
             attention_mask=attention_mask.float().to(token_ids.device)
         )
         if self.dr_rate:
-            out = self.dropout(pooler)
+            out = self.dropout(out)
         return self.classifier(out)
+
+
+class BERTEnsemble(BERTClassifier):
+    def __init__(self, bert, paths, device):
+        super(BERTEnsemble, self).__init__(bert)
+        self.models = []
+        for path in paths:
+            model = BERTClassifier(bert).to(device)
+            model.load_state_dict(torch.load(path, map_location=device))
+            model.eval()
+            self.models += (model,)
+
+    def forward(self, token_ids, valid_length, segment_ids):
+        averaged_output = 0
+        num_models = len(self.models)
+        for model in self.models:
+            out = model(token_ids, valid_length, segment_ids)
+            averaged_output += out / num_models
+
+        return averaged_output

@@ -4,6 +4,7 @@ import numpy as np
 from tqdm import tqdm
 
 
+
 class Trainer:
     def __init__(self):
         pass
@@ -43,9 +44,8 @@ class Trainer:
                                                                              train_acc / (batch_id + 1)))
             print("epoch {} train acc {}".format(epoch + 1, train_acc / (batch_id + 1)))
 
-            self.test(model, metric, device, test_dataloader, epoch, expid)
-            torch.save(model.state_dict())
-
+            # self.test(model, metric, device, test_dataloader, epoch, expid)
+            torch.save(model.state_dict(), f"/home/junhyun/projects/dacon_news/ckpt/{expid}_epoch{epoch + 1}.tar")
 
     def test(self,
              model,
