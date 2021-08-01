@@ -55,7 +55,7 @@ class Trainer:
              epoch,
              expid
              ):
-        model.eval()
+        model.train()
         test_eval = []
         test_acc = 0.0
         for batch_id, (token_ids, valid_length, segment_ids, label) in enumerate(tqdm(test_dataloader)):

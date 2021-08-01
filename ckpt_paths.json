@@ -1,6 +1,13 @@
 {
   "ckpt_list": [
-    "/home/junhyun/projects/dacon_news/ckpt/bs32_lr5e-05_dr0.5_ne1.tar",
-    "/home/junhyun/projects/dacon_news/ckpt/test.tar"
+    "/home/junhyun/projects/dacon_news/ckpt/bs128_lr5e-05_dr0.2_epoch1.tar",
+    "/home/junhyun/projects/dacon_news/ckpt/bs128_lr5e-05_dr0.5_epoch1.tar",
+    "/home/junhyun/projects/dacon_news/ckpt/bs16_lr5e-05_dr0.2_epoch1.tar",
+    "/home/junhyun/projects/dacon_news/ckpt/bs16_lr5e-05_dr0.5_epoch1.tar",
+    "/home/junhyun/projects/dacon_news/ckpt/bs32_lr5e-05_dr0.2_epoch1.tar",
+    "/home/junhyun/projects/dacon_news/ckpt/bs8_lr5e-05_dr0.5_epoch1.tar",
+    "/home/junhyun/projects/dacon_news/ckpt/bs64_lr5e-05_dr0.2_epoch1.tar",
+    "/home/junhyun/projects/dacon_news/ckpt/bs64_lr5e-05_dr0.5_epoch1.tar",
+    "/home/junhyun/projects/dacon_news/ckpt/bs8_lr5e-05_dr0.2_epoch1.tar"
     ]
 }

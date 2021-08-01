@@ -37,7 +37,7 @@ def main(args):
     tokenizer = get_tokenizer()
     tok = nlp.data.BERTSPTokenizer(tokenizer, vocab, lower=False)
 
-    dataset_train = nlp.data.TSVDataset("/home/junhyun/projects/dacon_news/data/augumented_train_data.tsv",
+    dataset_train = nlp.data.TSVDataset(f"/home/junhyun/projects/dacon_news/data/{args.trainset}",
                                         field_indices=[1, 2], num_discard_samples=1)
     dataset_test = nlp.data.TSVDataset("/home/junhyun/projects/dacon_news/data/test_data.tsv",
                                        field_indices=[1, 2], num_discard_samples=1)
@@ -94,7 +94,7 @@ def bagging(args):
     tokenizer = get_tokenizer()
     tok = nlp.data.BERTSPTokenizer(tokenizer, vocab, lower=False)
 
-    dataset_train = nlp.data.TSVDataset("/home/junhyun/projects/dacon_news/data/augumented_train_data.tsv",
+    dataset_train = nlp.data.TSVDataset(f"/home/junhyun/projects/dacon_news/data/{args.trainset}",
                                         field_indices=[1, 2], num_discard_samples=1)
     bootstrap_train_dataloaders = []  # todo
     for _ in range(5):
@@ -137,7 +137,7 @@ def bagging(args):
 def ensemble(args):
     device = torch.device("cuda:0")
     max_len = 64
-    batch_size = 64
+    batch_size = 24
 
     bertmodel, vocab = get_pytorch_kobert_model()
     assert args.ckpt, "please specify path of json file that contains ckpt file paths."
@@ -172,10 +172,21 @@ if __name__ == "__main__":
     parser.add_argument("--num_epochs", "-ne", type=int, default=1)
     parser.add_argument("--ensemble", "-e", action="store_true")
     parser.add_argument("--ckpt", type=str, default="/home/junhyun/projects/dacon_news/ckpt_paths.json")
+    parser.add_argument("--trainset", "-ts", type=str,
+                        choices=[
+                            "augumented_train_data.tsv",
+                            "aug_translate_chinese.csv",
+                            "aug_translate_chinese_nospecialchr.csv",
+                            "aug_delete_chinese_nospecialchr.csv"
+                        ])
+    parser.add_argument("--expid", "-id", type=str, default=None)
     args = parser.parse_args()
 
     if args.ensemble:
-        args.expid = "ensemble"
+        expid = f"ensemble"
+        if args.expid is not None:
+            expid += f"_{args.expid}"
+        args.expid = expid
         ensemble(args)
     else:
         args.expid = f"bs{args.batch_size}_lr{args.learning_rate}_dr{args.dropout_rate}"
