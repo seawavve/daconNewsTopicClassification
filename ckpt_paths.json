@@ -1,0 +1,6 @@
+{
+  "ckpt_list": [
+    "/home/junhyun/projects/dacon_news/ckpt/bs32_lr5e-05_dr0.5_ne1.tar",
+    "/home/junhyun/projects/dacon_news/ckpt/test.tar"
+    ]
+}
