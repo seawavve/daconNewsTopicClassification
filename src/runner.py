@@ -53,9 +53,10 @@ class Trainer:
              device,
              test_dataloader,
              epoch,
-             expid
+             expid,
+             mcdrop=False
              ):
-        model.train()
+        model.train() if mcdrop else model.eval()
         test_eval = []
         test_acc = 0.0
         for batch_id, (token_ids, valid_length, segment_ids, label) in enumerate(tqdm(test_dataloader)):
@@ -63,7 +64,13 @@ class Trainer:
             segment_ids = segment_ids.long().to(device)
             valid_length = valid_length
             label = label.long().to(device)
-            out = model(token_ids, valid_length, segment_ids)
+            if mcdrop:
+                assert isinstance(mcdrop, int), "mcdrop must be boolean value False or positive integer value"
+                out = 0
+                for i in range(mcdrop):
+                    out += model(token_ids, valid_length, segment_ids) / mcdrop
+            else:
+                out = model(token_ids, valid_length, segment_ids)
             test_acc += metric(out, label)
 
             for i in out:

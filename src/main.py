@@ -137,7 +137,7 @@ def bagging(args):
 def ensemble(args):
     device = torch.device("cuda:0")
     max_len = 64
-    batch_size = 24
+    batch_size = 4
 
     bertmodel, vocab = get_pytorch_kobert_model()
     assert args.ckpt, "please specify path of json file that contains ckpt file paths."
@@ -158,7 +158,8 @@ def ensemble(args):
                  device=device,
                  test_dataloader=test_dataloader,
                  epoch=0,
-                 expid=args.expid
+                 expid=args.expid,
+                 mcdrop=args.mcdrop
                  )
 
 
@@ -180,6 +181,7 @@ if __name__ == "__main__":
                             "aug_delete_chinese_nospecialchr.csv"
                         ])
     parser.add_argument("--expid", "-id", type=str, default=None)
+    parser.add_argument("--mcdrop", type=int, default=False)
     args = parser.parse_args()
 
     if args.ensemble:
