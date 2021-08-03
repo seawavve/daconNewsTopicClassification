@@ -175,12 +175,13 @@ if __name__ == "__main__":
     parser.add_argument("--num_epochs", "-ne", type=int, default=1)
     parser.add_argument("--ensemble", "-e", action="store_true")
     parser.add_argument("--ckpt", type=str, default="/home/junhyun/projects/dacon_news/ckpt_paths.json")
-    parser.add_argument("--trainset", "-ts", type=str, default="augumented_train_data.tsv",
+    parser.add_argument("--trainset", "-ts", type=str, default="aug_delete_chinese_nospecialchr.tsv",
                         choices=[
+                            "train_data.tsv",
                             "augumented_train_data.tsv",
-                            "aug_translate_chinese.csv",
-                            "aug_translate_chinese_nospecialchr.csv",
-                            "aug_delete_chinese_nospecialchr.csv"
+                            # "aug_translate_chinese.csv",
+                            "aug_translate_chinese_nospecialchr.tsv",
+                            "aug_delete_chinese_nospecialchr.tsv"
                         ])
     parser.add_argument("--expid", "-id", type=str, default=None)
     parser.add_argument("--mcdrop", type=int, default=False)

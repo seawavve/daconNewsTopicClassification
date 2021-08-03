@@ -1,8 +1,8 @@
 import torch
 import pandas as pd
 import numpy as np
+import os
 from tqdm import tqdm
-
 
 
 class Trainer:
@@ -45,6 +45,7 @@ class Trainer:
             print("epoch {} train acc {}".format(epoch + 1, train_acc / (batch_id + 1)))
 
             # self.test(model, metric, device, test_dataloader, epoch, expid)
+            os.makedirs(f"/home/junhyun/projects/dacon_news/ckpt", exist_ok=True)
             torch.save(model.state_dict(), f"/home/junhyun/projects/dacon_news/ckpt/{expid}_epoch{epoch + 1}.tar")
 
     def test(self,
