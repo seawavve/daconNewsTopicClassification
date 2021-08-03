@@ -18,7 +18,7 @@ from src.utils import calc_accuracy
 
 
 def main(args):
-    device = torch.device("cuda:0")
+    device = torch.device(f"cuda:{args.gpu}")
     max_len = 64
     warmup_ratio = 0.1
     max_grad_norm = 1
@@ -37,6 +37,7 @@ def main(args):
     tokenizer = get_tokenizer()
     tok = nlp.data.BERTSPTokenizer(tokenizer, vocab, lower=False)
 
+    os.makedirs("/home/junhyun/projects/dacon_news/data/{args.trainset}", exist_ok=True)
     dataset_train = nlp.data.TSVDataset(f"/home/junhyun/projects/dacon_news/data/{args.trainset}",
                                         field_indices=[1, 2], num_discard_samples=1)
     dataset_test = nlp.data.TSVDataset("/home/junhyun/projects/dacon_news/data/test_data.tsv",
@@ -77,7 +78,7 @@ def main(args):
 
 def bagging(args):
     # Setting parameters
-    device = torch.device("cuda:0")
+    device = torch.device(f"cuda:{args.gpu}")
     max_len = 64
     warmup_ratio = 0.1
     max_grad_norm = 1
@@ -135,7 +136,7 @@ def bagging(args):
 
 
 def ensemble(args):
-    device = torch.device("cuda:0")
+    device = torch.device(f"cuda:{args.gpu}")
     max_len = 64
     batch_size = 4
 
@@ -167,13 +168,14 @@ if __name__ == "__main__":
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
     parser = ArgumentParser()
+    parser.add_argument("--gpu", "-g", type=int, default=0)
     parser.add_argument("--batch_size", "-bs", type=int, default=32)
     parser.add_argument("--learning_rate", "-lr", type=float, default=5e-5)
     parser.add_argument("--dropout_rate", "-dr", type=float, default=0.5)
     parser.add_argument("--num_epochs", "-ne", type=int, default=1)
     parser.add_argument("--ensemble", "-e", action="store_true")
     parser.add_argument("--ckpt", type=str, default="/home/junhyun/projects/dacon_news/ckpt_paths.json")
-    parser.add_argument("--trainset", "-ts", type=str,
+    parser.add_argument("--trainset", "-ts", type=str, default="augumented_train_data.tsv",
                         choices=[
                             "augumented_train_data.tsv",
                             "aug_translate_chinese.csv",
